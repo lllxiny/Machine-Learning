@@ -1,0 +1,170 @@
+---
+title: ""
+author: "Xinyu Liu"
+date: "2023-01-15"
+output: html_document
+---
+
+## Autos Question
+
+Load the data
+```{r}
+autos <- read.csv("autos.csv",header = TRUE, stringsAsFactors = TRUE)
+```
+
+### Explore the “autos.csv” data. Include any metrics and / or plots you find interesting.
+
+```{r}
+str(autos)
+```
+24 variables with 193 observations
+
+```{r}
+colnames(autos)
+summary(autos)
+```
+
+characters (9): make, fuel_type, aspiration, num_of_doors, body_style, drive_wheels, engine_location, engine_type, fuel_system
+numbers (7): wheel_base, length, width, height, bore, stroke, compression_ratio
+integers (8): curb_weight,  num_of_cylinders, engine_size, horsepower, peak_rpm, city_mpg, highway_mpg, price
+
+Explore some character-value variables first
+
+```{r}
+## price~make
+boxplot(price~make, data=autos)
+plot(log(price)~make, data=autos)
+
+## price~fuel-type
+boxplot(price~fuel_type, data=autos)
+plot(log(price)~fuel_type, data=autos)
+
+## price~body_style
+boxplot(price~body_style, data=autos)
+plot(log(price)~body_style, data=autos)
+
+## price~drive_wheels
+boxplot(price~drive_wheels, data=autos)
+plot(log(price)~drive_wheels, data=autos)
+
+## price~engine_type
+boxplot(price~engine_type, data=autos)
+plot(log(price)~engine_type, data=autos)
+
+## make ~ body style
+ggplot(data=autos)+
+  stat_count(mapping=aes(x = body_style,fill=make))
+
+## body style ~ fuel type
+ggplot(data=autos)+
+  stat_count(mapping=aes(x = body_style,fill=fuel_type))
+
+## make~engine types
+ggplot(data=autos)+
+  stat_count(mapping=aes(x = engine_type,fill=make))
+
+```
+
+Explore some number or interger-value variables then
+```{r}
+
+plot(log(price)~curb_weight, data=autos)
+plot(log(price)~engine_size, data=autos)
+plot(log(price)~horsepower, data=autos)
+plot(log(price)~city_mpg, data=autos)
+plot(log(price)~highway_mpg, data=autos)
+
+
+ggplot(data=autos,mapping=aes(x=length,y=price))+
+  geom_point(mapping=aes(color = make))+
+  geom_smooth()
+
+ggplot(data=autos,mapping=aes(x=length,y=log(price)))+
+  geom_point(mapping=aes(color = make))+
+  geom_smooth()
+
+ggplot(data=autos,mapping=aes(x=width,y=log(price)))+
+  geom_point(mapping=aes(color = make))+
+  geom_smooth()
+
+ggplot(data=autos,mapping=aes(x=engine_size,y=horsepower))+
+  geom_point(mapping=aes(color = make))+
+  geom_smooth()
+
+ggplot(data=autos,mapping=aes(x=horsepower,y=highway_mpg))+
+  geom_point(mapping=aes(color = engine_size))+
+  geom_smooth()
+
+```
+
+### Create a linear regression model to predict price. Explain your model.
+
+```{r}
+autos_model <- glm(price~., data=autos)
+summary(autos_model)
+length(coef(autos_model))
+
+## check the p-values
+plot(hist(pvalue2), main="Histogram of p-values")
+ks.test(pvalue2,"punif")
+```
+The model regresses price on all of the other variables; 55 coefficients generated (including an intercept)
+
+```{r}
+pvalue2 <-(summary(autos_model) $ coefficients)[,4]
+length(pvalue2)
+model2_sig1 <- length(which(pvalue2<0.05))
+model2_sig1
+```
+
+With an alpha of 0.05, 23 variables are significant: makebmw, makechevrolet, makedodge, makemitsubishi, makepeugot, makeplymouth, fuel_typegas, aspirationturbo, body_stylehardtop, body_stylehatchback, body_stylesedan, body_stylewagon, engine_locationrear, wheel_base, length, width, height, curb_weight, engine_typel, engine_size, bore, compression_ratio, peak_rpm.
+All NA values in the model summary are probablydue to perfect multicollinearity.
+
+```{r}
+#make
+levels(autos$make)
+```
+With an alpha of 0.05, compared to Alfa Romeo, BMW's car are priced significantly higher. Chevrolet, Dodge, Mitsubishi, Peugot, Plymouth cars are priced significantly lower.
+```{r}
+#Fuel type
+levels(autos$fuel_type)
+```
+With an alpha of 0.05, compared to diesel cars, gas car are priced significantly lower.
+```{r}
+#Aspiration
+levels(autos$aspiration)
+```
+With an alpha of 0.05, turbo cars are priced significantly higher than standard cars
+```{r}
+#body style
+levels(autos$body_style)
+```
+With an alpha of 0.05, compared to convertible, all other four body types prices ("hardtop", "hatchback","sedan","wagon") are lower
+
+```{r}
+#engine location
+levels(autos$engine_location)
+```
+With an alpha of 0.05, Rear engine cars priced higher than front engine ones.
+Significant positive coefficient of price and wheel base, width, curb weight, engine size, peak_rpm.
+Significant negative coefficient of price and length, height, compression ratio.
+
+
+## Why might false discoveries be an issue?
+
+Alpha as the chance of making Type I error or false positive rate, is measured for each term included in the model. Thus, the more terms in the model, the higher chance for there to be significant variables even when there should not be any.
+
+This might be an issue as we might mistakenly regard some independent variables as significant while they are actually not making much difference to the depent variable. Such questionable judgements might lead to choosing wrong models or making wrong interpretation of the relationship between depent and independent variables.
+
+
+## Use the BH procedure to control the FDR with a q of 0.1. How many true discoveries do you estimate? Plot the cutoff line together with the significant and insignificant p-values.
+
+```{r}
+
+fdr(pvalue2,0.1,plotit=TRUE)
+controlled_sig <- length(which(pvalue2<0.02956354))
+controlled_sig
+num_estimated_true <- round(controlled_sig*0.9)
+num_estimated_true
+```
+After the BH procedure, 19 variables are still significant. As the FDR was set with a q of 0.1, 17 of variables are expected to be true discoveries.
