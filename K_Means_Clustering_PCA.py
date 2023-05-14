@@ -25,11 +25,10 @@ import matplotlib.pyplot as plt
 import plotnine as p
 
 
-# # Question 1
+# # Pt 1
 
 # ## What preprocessing techniques did you apply, if any?
 
-# In[17]:
 
 
 # View the data
@@ -37,14 +36,11 @@ data = pd.read_csv('madelon.csv')
 data.head()
 
 
-# In[92]:
 
 
 # check if scaling is needed
 data.describe()
 
-
-# In[361]:
 
 
 # using Shapiro-Wilk test to check normality
@@ -60,7 +56,7 @@ for col in data.columns:
         print('The data in column', col, 'are likely not normally distributed.')
 
 
-# In[365]:
+
 
 
 # use IQR to count the number of outliers
