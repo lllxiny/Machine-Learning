@@ -1,0 +1,178 @@
+---
+title: ""
+author: "Xinyu Liu"
+date: "2023-01-24"
+output: html_document
+---
+
+# Prep
+```{r}
+# Load package
+install.packages('glmnet')
+library(glmnet)
+install.packages('dplyr')
+library(dplyr)
+install.packages('caret')
+library(caret)
+install.packages("Hmisc")
+library(Hmisc)
+
+# Load data
+heart <- read.csv('heart.csv')
+head(heart)
+```
+240 observations, 20 variables
+
+
+# I.
+
+## (1) How would you choose a sample subset (such as missing value, nulls, empty columns) of this dataset? 
+## What criteria would you consider when selecting a training subset from the above dataset (such as balanced distribution between training and test for the treated observations) ?
+
+```{r}
+# Summary of the data
+summary(heart)
+```
+
+# Missing value inspection:  
+# According to the data summary, there are 9 variables with NA values: height (1), fat_free_wt(1), family_record(240), chest_dim(4), past_record (240), hip_dim (2), thigh_dim (1), wrist_dim (238), biceps_dim (1)
+  
+# Sample subset choosing:  
+# when choosing sample subsets to train models, we should avoid the variables with too many missing values. Including such variables would make no difference for the models. For the current dataset, the variables with more than 20% of values missed (more than 48 NAs) should be dropped. 
+
+```{r}
+# Drop the columns with more than 20% NA values
+heart1 <- within(heart, rm('family_record','past_record','wrist_dim'))
+```
+# For the other columns with NA values, treat the NA values by replacing them with the mean of the column.
+
+```{r}
+# Replace NA with column mean
+heart1$height[is.na(heart1$height)]<-mean(heart1$height,na.rm=TRUE)
+heart1$fat_free_wt[is.na(heart1$fat_free_wt)]<-mean(heart1$fat_free_wt,na.rm=TRUE)
+heart1$hip_dim[is.na(heart1$hip_dim)]<-mean(heart1$hip_dim,na.rm=TRUE)
+heart1$hip_dim[is.na(heart1$hip_dim)]<-mean(heart1$hip_dim,na.rm=TRUE)
+heart1$thigh_dim[is.na(heart1$thigh_dim)]<-mean(heart1$thigh_dim,na.rm=TRUE)
+heart1$biceps_dim[is.na(heart1$biceps_dim)]<-mean(heart1$biceps_dim,na.rm=TRUE)
+heart1$chest_dim[is.na(heart1$chest_dim)]<-mean(heart1$chest_dim,na.rm=TRUE)
+#Check the new df: 17 variables with no NA value left.
+summary(heart1)
+```
+
+# Criterons to consider when selecting a training subset:  
+
+# When selecting training subset, we should first check if the data is balanced. For unbalanced data, simply using random sampling to split the training and testing sets might cause the training set to include too much data of the majority class. This would lead to a model that is more sensitive to majority class. For these kind of data, we could sample by classes (undersample the majority class and upsample the minority classes).  
+
+# Also, we should select only variables without significant correlation so as to reduce the problem of multicollinearity. For example, we could run a correlation matrix, figure out which ones have significant correlation, and try to avoid such variables in the model at the same time or combine them to create a new variable. However, the underlying medical theory should always be referred to before removing any variable.
+
+
+```{r}
+# Run a correlation matrix
+rcorr(data.matrix(data.frame((heart1))))
+```
+
+## (2) Randomly split the dataset into test and training sets using 80% observations as training set. Fit a simple linear regression model (full model) to predict the heart attack probability and test your model against the test set.  Explain your model and obtain the R^2 for the predictions of the test data set (i.e., a true OOS R^2).
+
+```{r}
+# Randomly split the dataset to training (80%) and test set (20%)
+train <- createDataPartition(heart1$heart_attack, p=0.8, list=FALSE, times=1)
+set.seed(30)
+# 193 observations in the training set
+train_heart <- heart1[train,]
+
+# 47 observations in the test set
+test_heart <- heart1[-train,]
+
+# Fit a simple lm with training data
+q1_lm <- glm(train_heart$heart_attack~., data=train_heart)
+summary(q1_lm)
+```
+ 
+```{r}
+# Calculate R^2
+q1_train_r2 <- 1-(q1_lm$deviance/q1_lm$null.deviance)
+q1_train_r2
+```
+
+# Explain the model:
+# The simple linear regression model regresses heart_attack on the rest of the 16 variables. 9 of 16 variables are significant with a 95% confidence interval. The model in general has a R^2 of 0.94, which means that 93% of the variation in the dependent variable 'heart_attack' is explained by the current model with 16 variables.   
+  
+# Significant variables with positive coefficients: weight, chest_dim, abdom_dim, thigh_dim, ankle_dim, biceps_dim. For each unit increase of such variables, the probability of having a heart attack would increases.
+  
+# Significant variables with negative coefficients: past_pain, height, fat_free_wt. 
+# For each unit increase of such variables, the probability of having a heart attack would decreases.
+  
+```{r}
+# Use the simple linear regression to predict test set
+q1_lm_pred <- predict(q1_lm, newdata=test_heart, type="response")
+
+## Get the OOS null deviance
+q1_lm_dev_null <- sum((test_heart$heart_attack - mean(train_heart$heart_attack))^2)
+
+# Get the OOS residual deviance 
+q1_lm_dev_resid <- sum((test_heart$heart_attack - q1_lm_pred)^ 2)
+
+## Calculate OOS R-squared
+q1_test_r2 <- 1 - (q1_lm_dev_resid / q1_lm_dev_null)
+q1_test_r2
+
+```
+OOS R^2 is 0.92, lower than the in sample R^2 of 0.94. 
+
+
+
+
+
+# II.
+# Explain cross-validation and highlight the problems that may be associated with a cross-validation approach.
+
+# Cross validation is a model selection method. When conducting a k-fold cross validation, the data is randomly divided into k subsets. For each time of training, the model is trained on the (k-1) subsets of data, while one subset of the data is left to validate the trained model. The procedure stops when each subset had been the validation subset once.  
+  
+# The problems with cross validation: cross validation is time-consuming, given that the model needs to fit k times. Also, the model could be unstable when training on different samples. Besides, CV has the issue of having external information leaked into the training set and cause the problem of overfitting. 
+  
+
+
+
+
+
+
+# III.
+## Use only the training sets from question 1 and estimate an 8-fold cross-validation to estimate the R^2 of the full model. e., use cross-validation to train (on 7/8 of the training set) and evaluate (on 1/8 of the training set).  Calculate the mean R^2 from the 8-fold cross-validation and compare it with the R^2 from question 1.  Please explain your observation.
+
+```{r}
+# Set the number of k
+fold_ctrl <- trainControl(method = "cv", number = 8)
+
+# Estimate a 8-fold CV model
+q3_cvlm <- train(heart_attack~., data=train_heart, method = "lm", trControl =fold_ctrl,na.action=na.exclude)
+q3_cvlm
+
+```
+
+```{r}
+# Check resampling result for each fold
+q3_cvlm$resample
+```
+```{r}
+# Calculate the mean of R^2 from 8-fold CV
+mean(q3_cvlm$resample$Rsquared)
+```
+# The mean R^2 of the 8-fold CV model is 0.87, which is lower than the R^2 of the simple linear regression model fitted in Question 1 with the same training set but without cross validation.
+
+```{r}
+# Use the 8 fold CV model to predict the test set
+
+q3_cv_pred <- predict(q3_cvlm, newdata = test_heart)
+
+## Get the OOS null deviance
+q3_cv_pred_dev_null <- sum((test_heart$heart_attack - mean(train_heart$heart_attack))^2)
+
+# Get the OOS residual deviance 
+q3_cv_pred_dev_resid <- sum((test_heart$heart_attack- q3_cv_pred)^ 2)
+
+## Calculate OOS R-squared
+q3_cv_pred_r_square <- 1 - (q3_cv_pred_dev_resid/q3_cv_pred_dev_null) 
+q3_cv_pred_r_square
+```
+
+# 8 fold CV model OOS R^2 is 0.92, which is higher than the mean in sample R^2 of the 8 models fitted with the training set. 

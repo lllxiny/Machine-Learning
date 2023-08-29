@@ -1,0 +1,107 @@
+---
+title: ""
+author: "Xinyu Liu"
+date: "2023-01-15"
+output: html_document
+---
+
+```{r}
+
+## set working directory
+setwd("/cloud/project/file")
+```
+
+```{r}
+##load packages
+install.packages('ggplot2')
+library(ggplot2)
+```
+
+```{r}
+## FDR function 
+### set the fdr function
+
+fdr <- function(pvals, q, plotit=FALSE){
+  pvals <- pvals[!is.na(pvals)]
+  N <- length(pvals)
+  
+  k <- rank(pvals, ties.method="min")
+  alpha <- max(pvals[ pvals <= (q*k/N) ])
+  
+  if(plotit){
+    sig <- factor(pvals <= alpha)
+    o <- order(pvals)
+    plot(pvals[o], log="xy", col=c("grey60","red")[sig[o]], pch=20, 
+         ylab="p-values", xlab="tests ordered by p-value", main = paste('FDR =',q))
+    lines(1:N, q*(1:N) / N)
+  }
+  
+  return(alpha)
+}
+
+```
+
+### Produces a 10,000 x 1001 matrix (rows x cols)
+
+```{r}
+set.seed(5726)
+mx1 <- matrix(rnorm((10000*1001),mean=0,sd=1) , nrow=10000, ncol = 1001)
+```
+
+### Treat the first column as “y” and the remaining 1000 columns as x’s.
+
+```{r}
+y <- mx1[1:10000,1]
+x <- mx1[1:10000,2:1001]
+```
+
+### Regress y on x’s. Is an intercept needed?  Why?  Why not?
+
+```{r}
+summary(lm(y~x))
+resid1<-residuals(lm(y~x))
+hist(resid1)
+ks.test(resid1, 'pnorm')
+mean(resid1)
+```
+
+About the intercept:
+
+No intercept is needed. The reason is that there is no relationship between y and x, so both alpha and beta value of the regression should be zero. Thus, no intercept is needed.
+As can be seen in the summary of the regression, the value of the intercept is -5.483e-03, which is very small and close to zero, and it's not significant.
+
+
+### Create a histogram of the p-values from the regression in Q3. What distribution does this histogram look like?
+
+```{r}
+pvalue1 <-(summary(lm(y~x)) $ coefficients)[,4]
+plot(hist(pvalue1), main="Histogram of p-values")
+ks.test(pvalue1,"punif")
+```
+
+About the distribution of p-value:
+The distribution is a uniform distribution according to both the plot and the ks test; but with several spikes. 
+
+### How many “significant” variables do you expect to find knowing how the data was generated? How many “significant” variables does the regression yield if alpha = 0.01?  What does this tell us?
+
+Expecting to find none of the variables significant, because the data of both y and x are randomly drawn from a normal distribution, and are not supposed to have any relationships.
+
+```{r}
+model1_sig1 <- length(which(pvalue1<0.01))
+model1_sig1
+```
+With alpha = 0.01, there are 15 variables significant in the model.
+
+All of these 15 significant variables are false discoveries. 
+
+This means that, as alpha is 0.01 (the probability of Type I error) is measured for each experiment, when enough experiments are done, 1% of the variables are going to become significant anyways, even if there is not supposed to be any relationship between y and x's (which is about 10 variables in this case)
+
+### Given the p values you find, use the BH procedure to control the FDR with a q of 0.1. How many “true” discoveries do you estimate?
+
+Expecting no true discoveries after controlling the FDR with a q of 0.1
+
+```{r}
+fdr(pvalue1,0.1,plotit=TRUE)
+```
+
+P value cut off returned is negative inf. No red dots according to the plot. Turns out that none of the p values are significant after the FDR control.

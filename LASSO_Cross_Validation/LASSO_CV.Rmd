@@ -1,0 +1,115 @@
+---
+title: ""
+author: "Xinyu Liu"
+date: "2023-01-24"
+output: html_document
+---
+
+# Prep
+```{r}
+# Load package
+install.packages('glmnet')
+library(glmnet)
+install.packages('dplyr')
+library(dplyr)
+install.packages('caret')
+library(caret)
+install.packages("Hmisc")
+library(Hmisc)
+
+# Load data
+heart <- read.csv('heart.csv')
+head(heart)
+```
+240 observations, 20 variables
+
+# IV.
+## Explain Lasso regression and how does it work. List the pros and cons associated with using it.
+ 
+# Lasso regression (Least Absolute Shrinkage and Selection Operator) is a regression method with penalty. By introducing a penalty weight λ, the Lasso regression penalizes the model for having  βs as non-zero. It minimizes deviance and penalty term altogether through a regularized procedure. Starting with a large λ value which pushes all of the βs to zero, the model has the λ gradually increased to an optimized value. Some of the βs would shrink to zero while others remain in the model.  
+
+# Pros: Lasso can reduce the problem of overfitting with the penalty. Only the variables that increases the predictability are left in the model after being penalized. Multicolliearity causes higher penalty on unnecessary variables.  
+
+# Cons: Lasso might mistakenly set the β of some crucial variables during the procedure just to maximize the prediction power. This could make the model diverge from the underlying theory. Also, as Lasso aims at building a model that performs the best when predicting with OOS data, it could be difficult to interpret Lasso regression models and make inferences.
+
+
+
+
+
+
+# V.
+## Use again the training sets from question 1 and Fit a Lasso regression to predict the heart attack probability. Use cross-validation to obtain lambda_min as well as lambda_1se Explain the two resulting models. Which one would you choose? Compare model outputs from questions one, three, and five.
+
+```{r}
+y <- train_heart$heart_attack
+x <- as.matrix(train_heart[,-17])
+q5_lasso <- cv.glmnet(y=y, x=x,alpha=1, lambda = NULL)
+
+plot(q5_lasso)
+```
+```{r}
+plot(q5_lasso$glmnet.fit)
+```
+```{r}
+plot(q5_lasso$glmnet.fit, "lambda", label=TRUE)
+```
+```{r}
+q5_lasso$lambda.min
+```
+```{r}
+q5_lasso$lambda.1se
+```
+
+```{r}
+# Check the coefficient with lambda min
+coef(q5_lasso, s=q5_lasso$lambda.min)
+```
+# With lambda as lambda.min, 7 variables remain in the model.
+
+```{r}
+# Check the coefficient with lambda 1se
+coef(q5_lasso, s=q5_lasso$lambda.1se)
+```
+# With lambda as lambda.1se, 5 variables remain in the model. A simpler model compared to the one using lambda min. 
+
+# Model using lambda.1se is chosen to fit a new model to reduce the problem of multicollinearity.
+
+```{r}
+# calculating OOS using the test dataset
+
+predicted_pts_lasso_1 <- predict(q5_lasso, s = q5_lasso$lambda.min, newx = as.matrix(test_heart[,-17]))
+
+## Get the OOS null deviance
+dev_null_lasso_1 <- sum((test_heart$heart_attack - mean(train_heart$heart_attack))^2)
+
+# Get the OOS residual deviance 
+dev_resid_lasso_1 <- sum((test_heart$heart_attack - predicted_pts_lasso_1)^ 2)
+
+## Calculate OOS R-squared
+r_square_lasso_1 <- 1 - (dev_resid_lasso_1 / dev_null_lasso_1)
+r_square_lasso_1
+```
+
+
+```{r}
+# calculating OOS using the test dataset
+
+predicted_pts_lasso_2 <- predict(q5_lasso, s = q5_lasso$lambda.1se, newx = as.matrix(test_heart[,-17]))
+
+## Get the OOS null deviance
+dev_null_lasso_2<- sum((test_heart$heart_attack - mean(train_heart$heart_attack))^2)
+
+# Get the OOS residual deviance 
+dev_resid_lasso_2 <- sum((test_heart$heart_attack - predicted_pts_lasso_2)^ 2)
+
+## Calculate OOS R-squared
+r_square_lasso_2 <- 1 - (dev_resid_lasso_2 / dev_null_lasso_2)
+r_square_lasso_2
+```
+```{r}
+colu_name <- c('Simple LM', '8-Fold CV', 'λ.Min Lasso','λ.1se Lasso')
+OOS_R2 <- c(round(q1_test_r2*100,2),round(q3_cv_pred_r_square*100,2),round(r_square_lasso_1*100,2), round(r_square_lasso_2*100,2))
+
+data.frame(colu_name, OOS_R2)
+
+```
